@@ -75,31 +75,46 @@ async fn main()
                 tokio::spawn(async move {
                     let permit = semaphore.acquire_owned().await;
         
-                    let transfer_instr: Instruction = transfer(&main_wallet.pubkey(), &sub_account.pubkey(), withdraw_amount_lamports);
+					let mut counter = 0;
+					while counter < 8 {
+						counter += 1;
+						tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+						let transfer_instr: Instruction = transfer(&main_wallet.pubkey(), &sub_account.pubkey(), withdraw_amount_lamports);
         
-                    let tx: Transaction = Transaction::new(
-                        &[&*main_wallet],
-                        Message::new(
-                            &[transfer_instr],
-                            Some(&main_wallet.pubkey()),
-                        ),
-                        client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
-                    );
-        
-                    let tx_result = client.send_and_confirm_transaction(&tx).await;
-        
-                    match tx_result {
-                        Ok(tx_result) => {
-                            println!("Send tx with hash {}", tx_result);
-                        }
-                        Err(e) => {
-                            if e.to_string().contains("0x1") {
-                                println!("Error: This likely means there is insufficient balance\nFull err: {:?}", e);
-                            } else {
-                                println!("Error: {:?}", e);
-                            }
-                        }
-                    }
+						let tx: Transaction = Transaction::new(
+							&[&*main_wallet],
+							Message::new(
+								&[transfer_instr],
+								Some(&main_wallet.pubkey()),
+							),
+							client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
+						);
+			
+						let tx_result = client.send_and_confirm_transaction(&tx).await;
+			
+						match tx_result {
+							Ok(tx_result) => {
+								println!("Send tx with hash {}", tx_result);
+								let success_subaccount = sub_account.to_base58_string();
+								let file_content = tokio::fs::read_to_string("./files/success.txt").await?;
+								let write_content = format!("{}\n{}", file_content, success_subaccount);
+								tokio::fs::write("./files/success.txt", write_content).await?;
+								println!("Success subaccount written to file");
+								break;
+							}
+							Err(e) => {
+								if e.to_string().contains("0x1") {
+									println!("Error: This likely means there is insufficient balance\nFull err: {:?}", e);
+								} else if e.to_string().contains("429") {
+									println!("Error: This likely means too many requests\nFull err: {:?}", e);
+									tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+								} else {
+									println!("Error: {:?}", e);
+								}
+								println!("Retrying...");
+							}
+						}
+					}
         
                     drop(permit);
         
@@ -117,38 +132,54 @@ async fn main()
                     let client = client.clone();
                     async move {
                         let permit = semaphore.acquire_owned().await;
-                        let sub_acc_balance: u64 = client.get_balance(&sub_account.pubkey()).await?;
-        
-                        if sub_acc_balance == 0 {
-                            println!("Account {} has no balance", sub_account.pubkey());
-                            return Ok::<(), solana_client::client_error::ClientError>(());
-                        }
-        
-                        let transfer_instr: Instruction = transfer(&sub_account.pubkey(), &main_wallet.pubkey(), sub_acc_balance);
-        
-                        let tx: Transaction = Transaction::new(
-                            &[&sub_account, &main_wallet],
-                            Message::new(
-                                &[transfer_instr],
-                                Some(&main_wallet.pubkey()),
-                            ),
-                            client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
-                        );
-        
-                        let tx_result = client.send_and_confirm_transaction(&tx).await;
-        
-                        match tx_result {
-                            Ok(tx_result) => {
-                                println!("Send tx with hash {}", tx_result);
-                            }
-                            Err(e) => {
-                                if e.to_string().contains("0x1") {
-                                    println!("Error: This likely means there is insufficient balance\nFull err: {:?}", e);
-                                } else {
-                                    println!("Error: {}", e);
-                                }
-                            }
-                        }
+
+						let mut counter = 0;
+						while counter < 8 {
+							counter += 1;
+							tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+							let sub_acc_balance: u64 = client.get_balance(&sub_account.pubkey()).await?;
+			
+							if sub_acc_balance == 0 {
+								println!("Account {} has no balance", sub_account.pubkey());
+								return Ok::<(), solana_client::client_error::ClientError>(());
+							}
+			
+							let transfer_instr: Instruction = transfer(&sub_account.pubkey(), &main_wallet.pubkey(), sub_acc_balance);
+			
+							let tx: Transaction = Transaction::new(
+								&[&sub_account, &main_wallet],
+								Message::new(
+									&[transfer_instr],
+									Some(&main_wallet.pubkey()),
+								),
+								client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
+							);
+			
+							let tx_result = client.send_and_confirm_transaction(&tx).await;
+			
+							match tx_result {
+								Ok(tx_result) => {
+									println!("Send tx with hash {}", tx_result);
+									let success_subaccount = sub_account.to_base58_string();
+									let file_content = tokio::fs::read_to_string("./files/success.txt").await?;
+									let write_content = format!("{}\n{}", file_content, success_subaccount);
+									tokio::fs::write("./files/success.txt", write_content).await?;
+									println!("Success subaccount written to file");
+									break;
+								}
+								Err(e) => {
+									if e.to_string().contains("0x1") {
+										println!("Error: This likely means there is insufficient balance\nFull err: {:?}", e);
+									} else if e.to_string().contains("429") {
+										println!("Error: This likely means too many requests\nFull err: {:?}", e);
+										tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+									} else {
+										println!("Error: {}", e);
+									}
+									println!("Retrying...");
+								}
+							}
+						}
                         
                         drop(permit);
 

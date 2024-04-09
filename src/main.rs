@@ -9,7 +9,6 @@ use solana_sdk::{
     system_instruction::transfer,
     transaction::Transaction,
     message::Message,
-	compute_budget::ComputeBudgetInstruction
 };
 use solana_client::nonblocking::rpc_client::RpcClient;
 
@@ -34,7 +33,7 @@ async fn main()
     let sub_accounts: Vec<Arc<Keypair>> = tokio::fs::read_to_string("./files/accounts.txt")
         .await?
         .trim()
-        .split("\n")
+        .split("\r\n")
         .map(Keypair::from_base58_string)
         .map(Arc::new)
         .collect::<Vec<_>>();
@@ -79,14 +78,12 @@ async fn main()
 					let mut counter = 0;
 					while counter < 8 {
 						counter += 1;
-						tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 						let transfer_instr: Instruction = transfer(&main_wallet.pubkey(), &sub_account.pubkey(), withdraw_amount_lamports);
-						let priority_instr: Instruction = ComputeBudgetInstruction::set_compute_unit_price(10000);
         
 						let tx: Transaction = Transaction::new(
 							&[&*main_wallet],
 							Message::new(
-								&[transfer_instr, priority_instr],
+								&[transfer_instr],
 								Some(&main_wallet.pubkey()),
 							),
 							client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
@@ -138,7 +135,6 @@ async fn main()
 						let mut counter = 0;
 						while counter < 8 {
 							counter += 1;
-							tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 							let sub_acc_balance: u64 = client.get_balance(&sub_account.pubkey()).await?;
 			
 							if sub_acc_balance == 0 {
@@ -146,13 +142,12 @@ async fn main()
 								return Ok::<(), solana_client::client_error::ClientError>(());
 							}
 
-							let priority_instr: Instruction = ComputeBudgetInstruction::set_compute_unit_price(10000);
 							let transfer_instr: Instruction = transfer(&sub_account.pubkey(), &main_wallet.pubkey(), sub_acc_balance / 2);
 			
 							let tx: Transaction = Transaction::new(
 								&[&sub_account, &main_wallet],
 								Message::new(
-									&[transfer_instr, priority_instr],
+									&[transfer_instr],
 									Some(&main_wallet.pubkey()),
 								),
 								client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)

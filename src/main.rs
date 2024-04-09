@@ -9,6 +9,7 @@ use solana_sdk::{
     system_instruction::transfer,
     transaction::Transaction,
     message::Message,
+	compute_budget::ComputeBudgetInstruction
 };
 use solana_client::nonblocking::rpc_client::RpcClient;
 
@@ -80,11 +81,12 @@ async fn main()
 						counter += 1;
 						tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 						let transfer_instr: Instruction = transfer(&main_wallet.pubkey(), &sub_account.pubkey(), withdraw_amount_lamports);
+						let priority_instr: Instruction = ComputeBudgetInstruction::set_compute_unit_price(10000);
         
 						let tx: Transaction = Transaction::new(
 							&[&*main_wallet],
 							Message::new(
-								&[transfer_instr],
+								&[transfer_instr, priority_instr],
 								Some(&main_wallet.pubkey()),
 							),
 							client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
@@ -143,13 +145,14 @@ async fn main()
 								println!("Account {} has no balance", sub_account.pubkey());
 								return Ok::<(), solana_client::client_error::ClientError>(());
 							}
-			
-							let transfer_instr: Instruction = transfer(&sub_account.pubkey(), &main_wallet.pubkey(), sub_acc_balance);
+
+							let priority_instr: Instruction = ComputeBudgetInstruction::set_compute_unit_price(10000);
+							let transfer_instr: Instruction = transfer(&sub_account.pubkey(), &main_wallet.pubkey(), sub_acc_balance / 2);
 			
 							let tx: Transaction = Transaction::new(
 								&[&sub_account, &main_wallet],
 								Message::new(
-									&[transfer_instr],
+									&[transfer_instr, priority_instr],
 									Some(&main_wallet.pubkey()),
 								),
 								client.get_latest_blockhash().await.unwrap_or(client.get_latest_blockhash().await?)
